@@ -1,5 +1,5 @@
 # experimental-ARInterface
-Experimental cross-platform framework for mobile AR shown as part of "So You Think You Can Augment Reality?" talk at Unite Austin 2017
+Experimental cross-platform framework for mobile AR shown as part of ["So You Think You Can Augment Reality?" talk](https://youtu.be/oNekBgognFE) at Unite Austin 2017.  Also see [blog post](https://blogs.unity3d.com/2017/11/01/experimenting-with-multiplayer-arcore-and-arkit-jump-in-with-sample-code/).
 
 ## Prerequisites
 
