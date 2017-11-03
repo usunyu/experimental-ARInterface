@@ -65,6 +65,8 @@ namespace UnityARInterface
             }
         }
 
+        public bool serviceRunning { get; protected set; }
+
         public void AlignWithPointOfInterest(Vector3 position)
         {
             var root = m_ARCamera.transform.parent;
@@ -112,16 +114,26 @@ namespace UnityARInterface
             if (m_ARCamera == null)
                 m_ARCamera = Camera.main;
 
-            m_ARInterface.StartService(GetSettings());
-            m_ARInterface.SetupCamera(m_ARCamera);
+            serviceRunning = m_ARInterface.StartService(GetSettings());
 
-            Application.onBeforeRender += OnBeforeRender;
+            if (serviceRunning)
+            {
+                m_ARInterface.SetupCamera(m_ARCamera);
+                Application.onBeforeRender += OnBeforeRender;
+            }
+            else
+            {
+                enabled = false;
+            }
         }
 
         void OnDisable()
         {
-            m_ARInterface.StopService();
-            Application.onBeforeRender -= OnBeforeRender;
+            if (serviceRunning)
+            {
+                m_ARInterface.StopService();
+                Application.onBeforeRender -= OnBeforeRender;
+            }
         }
 
         void Update()

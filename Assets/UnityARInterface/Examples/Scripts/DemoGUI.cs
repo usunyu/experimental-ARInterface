@@ -25,6 +25,9 @@ public class DemoGUI : ARBase
 
     void OnGUI()
     {
+        if (m_ARController == null || !m_ARController.enabled)
+            return;
+
         guiHeight = Screen.height / 5;
         var buttonWidth = Screen.width / 2;
 
