@@ -23,3 +23,12 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/GoogleARCore/HelloARExample/Scenes/HelloAR.unity
     guid: e6a6fa04348cb45c9b0221eb19c946da
+  - enabled: 0
+    path: Assets/TanksNetworkingAR/Scenes/ARSetupScene.unity
+    guid: 080ac1b98781a4b7ba0ae27b39577f1b
+  - enabled: 0
+    path: Assets/TanksNetworkingAR/Scenes/LobbyScene.unity
+    guid: 36e75a5ad0c2df847b41f2c664f486c6
+  - enabled: 0
+    path: Assets/TanksNetworkingAR/Scenes/CompleteMainScene.unity
+    guid: 53dbee9b5f0f43642ab7e99460ca86d2
