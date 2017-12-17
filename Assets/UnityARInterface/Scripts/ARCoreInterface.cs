@@ -16,20 +16,16 @@ namespace UnityARInterface
         private System.Nullable<float> m_VerticalFov;
         private ScreenOrientation m_CachedScreenOrientation;
         private Dictionary<TrackedPlane, BoundedPlane> m_TrackedPlanes = new Dictionary<TrackedPlane, BoundedPlane>();
-        private SessionComponent m_Session;
+        private ARCoreSession m_Session;
+        private ARCoreSessionConfig m_SessionConfig;
         private Matrix4x4 m_DisplayTransform = Matrix4x4.identity;
 
         public override bool StartService(Settings settings)
         {
             if (m_Session == null)
             {
-                var sessionConfig = ScriptableObject.CreateInstance<SessionConfig>();
-
-                // We're going to manage the camera separately, but this needs to be true
-                // so the ARCore native API knows we're going to use the camera.
-                sessionConfig.m_enableARBackground = true;
-                sessionConfig.m_enablePlaneFinding = settings.enablePlaneDetection;
-                sessionConfig.m_enablePointcloud = settings.enablePointCloud;
+                m_SessionConfig = ScriptableObject.CreateInstance<ARCoreSessionConfig>();
+                m_SessionConfig.EnablePlaneFinding = settings.enablePlaneDetection;
 
                 var gameObject = new GameObject("Session Manager");
 
@@ -37,18 +33,15 @@ namespace UnityARInterface
                 // or else the Awake method will be called before we have set
                 // the session config.
                 gameObject.SetActive(false);
-                m_Session = gameObject.AddComponent<SessionComponent>();
-                m_Session.m_connectOnAwake = false;
-                m_Session.m_arSessionConfig = sessionConfig;
+                m_Session = gameObject.AddComponent<ARCoreSession>();
+                m_Session.ConnectOnAwake = false;
 
-                // We are going to manage the camera separately, so
-                // intentionally leave null.
-                m_Session.m_firstPersonCamera = null;
                 gameObject.SetActive(true);
             }
 
-            m_Session.Connect();
-            return SessionManager.ConnectionState == SessionConnectionState.Connected;
+            m_Session.Connect(m_SessionConfig);
+            return true;
+            //return SessionManager.ConnectionState == SessionConnectionState.Connected;
         }
 
         public override void StopService()
