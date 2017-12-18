@@ -167,9 +167,12 @@ namespace UnityARInterface
             m_CachedScreenOrientation = Screen.orientation;
         }
 
-        private bool ExtentsUpdated(TrackedPlane tp, BoundedPlane bp)
+        private bool PlaneUpdated(TrackedPlane tp, BoundedPlane bp)
         {
-            return (tp.ExtentX != bp.extents.x || tp.ExtentZ != bp.extents.y);
+            var extents = (tp.ExtentX != bp.extents.x || tp.ExtentZ != bp.extents.y);
+            var rotation = tp.Rotation != bp.rotation;
+            var position = tp.Position != bp.center;
+            return (extents || rotation || position);
         }
 
         public override void Update()
@@ -190,7 +193,7 @@ namespace UnityARInterface
                         m_TrackedPlanes.Remove(trackedPlane);
                     }
                     // update any planes with changed extents
-                    else if (ExtentsUpdated(trackedPlane, boundedPlane))
+                    else if (PlaneUpdated(trackedPlane, boundedPlane))
                     {
                         boundedPlane.center = trackedPlane.Position;
                         boundedPlane.rotation = trackedPlane.Rotation;
