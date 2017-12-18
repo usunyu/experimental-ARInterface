@@ -45,7 +45,6 @@ namespace UnityARInterface
             }
 
             m_Session.Connect(m_SessionConfig);
-            //m_NativeApi = NativeApi.CreateSession();
             
             Debug.Log("SESSION STATE: " + Session.ConnectionState.ToString());
             return true;
@@ -210,15 +209,18 @@ namespace UnityARInterface
             m_DisplayTransform.m11 = -cosTheta;
         }
 
-        ARBackgroundRenderer m_BackgroundRenderer;
+        ARCoreBackgroundRenderer m_BackgroundRenderer;
 
         public override void SetupCamera(Camera camera)
         {
+            m_BackgroundRenderer = camera.gameObject.AddComponent<ARCoreBackgroundRenderer>();
+            /*
             m_BackgroundRenderer = new ARBackgroundRenderer();
             m_BackgroundRenderer.backgroundMaterial =
                 Resources.Load("Materials/ARBackground", typeof(Material)) as Material;
             m_BackgroundRenderer.mode = ARRenderMode.MaterialAsBackground;
             m_BackgroundRenderer.camera = camera;
+            */
         }
 
         public override void UpdateCamera(Camera camera)
@@ -275,40 +277,14 @@ namespace UnityARInterface
             return (tp.ExtentX != bp.extents.x || tp.ExtentZ != bp.extents.y);
         }
 
-        // this is the code inside of ARCoreBackgroundRenderer's update loop basically
-        private void UpdateBackground()
-        {
-            const string mainTex = "_MainTex";
-            const string topLeftRight = "_UvTopLeftRight";
-            const string bottomLeftRight = "_UvBottomLeftRight";
-
-            var bgMaterial = m_BackgroundRenderer.backgroundMaterial;
-            bgMaterial.SetTexture(mainTex, Frame.CameraImage.Texture);
-
-            ApiDisplayUvCoords uvQuad = Frame.CameraImage.DisplayUvCoords;
-
-            bgMaterial.SetVector(topLeftRight,
-                new Vector4(uvQuad.TopLeft.x, uvQuad.TopLeft.y, uvQuad.TopRight.x, uvQuad.TopRight.y));
-            bgMaterial.SetVector(bottomLeftRight,
-                new Vector4(uvQuad.BottomLeft.x, uvQuad.BottomLeft.y, uvQuad.BottomRight.x, uvQuad.BottomRight.y));
-
-            var camera = m_BackgroundRenderer.camera;
-            camera.projectionMatrix = Frame.CameraImage.GetCameraProjectionMatrix(camera.nearClipPlane, camera.farClipPlane);
-        }
-
         public override void Update()
         {
-            UpdateBackground();
-
-            //SessionManager.Instance.EarlyUpdate();
-
             if (Frame.TrackingState != TrackingState.Tracking)
                 return;
 
             Frame.GetPlanes(m_TrackedPlaneBuffer);
             foreach (var trackedPlane in m_TrackedPlaneBuffer)
             {
-                Debug.Log("tracked plane found !");
                 BoundedPlane boundedPlane;
                 if (m_TrackedPlanes.TryGetValue(trackedPlane, out boundedPlane))
                 {
