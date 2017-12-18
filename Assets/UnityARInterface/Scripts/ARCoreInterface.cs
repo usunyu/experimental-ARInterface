@@ -193,6 +193,7 @@ namespace UnityARInterface
                     else if (ExtentsUpdated(trackedPlane, boundedPlane))
                     {
                         boundedPlane.center = trackedPlane.Position;
+                        boundedPlane.rotation = trackedPlane.Rotation;
                         boundedPlane.extents.x = trackedPlane.ExtentX;
                         boundedPlane.extents.y = trackedPlane.ExtentZ;
                         OnPlaneUpdated(boundedPlane);
