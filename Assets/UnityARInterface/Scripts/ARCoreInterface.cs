@@ -1,35 +1,30 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using UnityEngine;
-using UnityEngine.XR;
 using GoogleARCore;
-using GoogleARCoreInternal;
-using ARCoreNative = GoogleAR.UnityNative;
 
 namespace UnityARInterface
 {
     public class ARCoreInterface : ARInterface
     {
         private List<TrackedPlane> m_TrackedPlaneBuffer = new List<TrackedPlane>();
-        private System.Nullable<float> m_HorizontalFov;
-        private System.Nullable<float> m_VerticalFov;
+        private float? m_HorizontalFov;
+        private float? m_VerticalFov;
         private ScreenOrientation m_CachedScreenOrientation;
         private Dictionary<TrackedPlane, BoundedPlane> m_TrackedPlanes = new Dictionary<TrackedPlane, BoundedPlane>();
-        private SessionComponent m_Session;
+        private ARCoreSession m_Session;
+        private ARCoreSessionConfig m_SessionConfig;
+        private ARCoreBackgroundRenderer m_BackgroundRenderer;
         private Matrix4x4 m_DisplayTransform = Matrix4x4.identity;
+        private List<Vector4> m_TempPointCloud = new List<Vector4>();
 
         public override bool StartService(Settings settings)
         {
             if (m_Session == null)
             {
-                var sessionConfig = ScriptableObject.CreateInstance<SessionConfig>();
-
-                // We're going to manage the camera separately, but this needs to be true
-                // so the ARCore native API knows we're going to use the camera.
-                sessionConfig.m_enableARBackground = true;
-                sessionConfig.m_enablePlaneFinding = settings.enablePlaneDetection;
-                sessionConfig.m_enablePointcloud = settings.enablePointCloud;
+                m_SessionConfig = ScriptableObject.CreateInstance<ARCoreSessionConfig>();
+                m_SessionConfig.EnablePlaneFinding = settings.enablePlaneDetection;
+                m_SessionConfig.EnableLightEstimation = settings.enableLightEstimation;
 
                 var gameObject = new GameObject("Session Manager");
 
@@ -37,18 +32,23 @@ namespace UnityARInterface
                 // or else the Awake method will be called before we have set
                 // the session config.
                 gameObject.SetActive(false);
-                m_Session = gameObject.AddComponent<SessionComponent>();
-                m_Session.m_connectOnAwake = false;
-                m_Session.m_arSessionConfig = sessionConfig;
+                m_Session = gameObject.AddComponent<ARCoreSession>();
+                m_Session.SessionConfig = m_SessionConfig;
+                m_Session.ConnectOnAwake = false;
 
-                // We are going to manage the camera separately, so
-                // intentionally leave null.
-                m_Session.m_firstPersonCamera = null;
                 gameObject.SetActive(true);
             }
 
-            m_Session.Connect();
-            return SessionManager.ConnectionState == SessionConnectionState.Connected;
+            // this task is async, and is not connected when we return true
+            // but it works anyway. we could make this method an iterator.
+            m_Session.Connect(m_SessionConfig);
+            return true;
+        }
+
+        public IEnumerator<CustomYieldInstruction> ConnectServiceSync()
+        {
+            var asyncTask = m_Session.Connect(m_SessionConfig);
+            yield return asyncTask.WaitForCompletion();
         }
 
         public override void StopService()
@@ -59,110 +59,47 @@ namespace UnityARInterface
 
         public override bool TryGetUnscaledPose(ref Pose pose)
         {
-            if (Frame.TrackingState != FrameTrackingState.Tracking)
+            if (Frame.TrackingState != TrackingState.Tracking)
                 return false;
 
-            ARCoreNative.PoseData poseData;
-
-            bool getPoseSuccess = ARCoreNative.InputTracking.TryGetPoseAtTime(
-                out poseData,
-                ARCoreNative.CoordinateFrame.StartOfService,
-                ARCoreNative.CoordinateFrame.CameraColor);
-
-            if (getPoseSuccess && (poseData.statusCode == ARCoreNative.PoseStatus.Valid))
-            {
-                pose.position = poseData.position;
-                pose.rotation = poseData.rotation;
-                return true;
-            }
-
-            return false;
+            pose.position = Frame.Pose.position;
+            pose.rotation = Frame.Pose.rotation;
+            return true;
         }
 
         public override bool TryGetCameraImage(ref CameraImage cameraImage)
         {
-            ARCoreNative.NativeImage nativeImage = new ARCoreNative.NativeImage();
-            if (ARCoreNative.Device.TryAcquireLatestImageBuffer(ref nativeImage))
-            {
-                cameraImage.width = (int)nativeImage.width;
-                cameraImage.height = (int)nativeImage.height;
+            if (Frame.TrackingState != TrackingState.Tracking)
+                return false;
 
-                var planeInfos = nativeImage.planeInfos;
-
-                // The Y plane is always the first one.
-                var yOffset = planeInfos[0].offset;
-                var numYBytes = planeInfos[0].size;
-                IntPtr yPlaneStart = new IntPtr(nativeImage.planeData.ToInt64() + yOffset);
-
-                if (cameraImage.y == null || cameraImage.y.Length != numYBytes)
-                    cameraImage.y = new byte[numYBytes];
-
-                Marshal.Copy(yPlaneStart, cameraImage.y, 0, (int)numYBytes);
-
-                // UV planes are not deterministic, but we want all the data in one go
-                // so the offset will be the min of the two planes.
-                int uvOffset = Mathf.Min(
-                    (int)nativeImage.planeInfos[1].offset,
-                    (int)nativeImage.planeInfos[2].offset);
-
-                // Find the end of the uv plane data
-                int uvDataEnd = 0;
-                for (int i = 1; i < planeInfos.Count; ++i)
-                {
-                    uvDataEnd = Mathf.Max(uvDataEnd, (int)planeInfos[i].offset + planeInfos[i].size);
-                }
-
-                // Finally, compute the number of bytes by subtracting the end from the beginning
-                var numUVBytes = uvDataEnd - uvOffset;
-                IntPtr uvPlaneStart = new IntPtr(nativeImage.planeData.ToInt64() + uvOffset);
-
-                if (cameraImage.uv == null || cameraImage.uv.Length != numUVBytes)
-                    cameraImage.uv = new byte[numUVBytes];
-
-                Marshal.Copy(uvPlaneStart, cameraImage.uv, 0, (int)numUVBytes);
-
-                ARCoreNative.Device.ReleaseImageBuffer(nativeImage);
-
-                // The data is usually provided as VU rather than UV,
-                // so we need to swap the bytes.
-                // There's no way to know this currently, but it's always
-                // been this way on every device so far.
-                for (int i = 1; i < numUVBytes; i += 2)
-                {
-                    var b = cameraImage.uv[i - 1];
-                    cameraImage.uv[i - 1] = cameraImage.uv[i];
-                    cameraImage.uv[i] = b;
-                }
-
-                return true;
-            }
-
-            return false;
+            var camTexture = Frame.CameraImage.Texture;
+            cameraImage.height = camTexture.height;
+            cameraImage.width = camTexture.width;
+            return true;
         }
 
         public override bool TryGetPointCloud(ref PointCloud pointCloud)
         {
             // Fill in the data to draw the point cloud.
-            GoogleARCore.PointCloud nativePointCloud = Frame.PointCloud;
-            if (nativePointCloud.PointCount == 0)
+            m_TempPointCloud.Clear();
+            Frame.PointCloud.CopyPoints(m_TempPointCloud);
+
+            if (m_TempPointCloud.Count == 0)
                 return false;
 
             if (pointCloud.points == null)
                 pointCloud.points = new List<Vector3>();
 
             pointCloud.points.Clear();
-
-            for (int i = 0; i < nativePointCloud.PointCount; i++)
-            {
-                pointCloud.points.Add(nativePointCloud.GetPoint(i));
-            }
+            foreach (Vector3 point in m_TempPointCloud)
+                pointCloud.points.Add(point);
 
             return true;
         }
 
         public override LightEstimate GetLightEstimate()
         {
-            if (SessionManager.ConnectionState == SessionConnectionState.Connected)
+            if (Session.ConnectionState == SessionConnectionState.Connected)
             {
                 return new LightEstimate()
                 {
@@ -215,13 +152,10 @@ namespace UnityARInterface
 
         public override void SetupCamera(Camera camera)
         {
-            var backgroundRender = new ARBackgroundRenderer();
-            backgroundRender.backgroundMaterial =
-                Resources.Load("Materials/ARBackground", typeof(Material)) as Material;
-            backgroundRender.mode = ARRenderMode.MaterialAsBackground;
-            backgroundRender.camera = camera;
-
-            ARCoreNative.Device.backgroundRenderer = backgroundRender;
+            camera.gameObject.SetActive(false);
+            m_BackgroundRenderer = camera.gameObject.AddComponent<ARCoreBackgroundRenderer>();
+            m_BackgroundRenderer.BackgroundMaterial = Resources.Load("Materials/ARBackground", typeof(Material)) as Material;
+            camera.gameObject.SetActive(true);
         }
 
         public override void UpdateCamera(Camera camera)
@@ -230,83 +164,57 @@ namespace UnityARInterface
                 return;
 
             CalculateDisplayTransform();
-
             m_CachedScreenOrientation = Screen.orientation;
+        }
 
-            if (m_CachedScreenOrientation == ScreenOrientation.Portrait ||
-                m_CachedScreenOrientation == ScreenOrientation.PortraitUpsideDown)
-            {
-                if (m_HorizontalFov.HasValue)
-                {
-                    camera.fieldOfView = m_HorizontalFov.Value;
-                }
-                else
-                {
-                    float fieldOfView;
-                    if (ARCoreNative.Device.TryGetHorizontalFov(out fieldOfView))
-                    {
-                        m_HorizontalFov = fieldOfView;
-                        camera.fieldOfView = fieldOfView;
-                    }
-                }
-            }
-            else
-            {
-                if (m_VerticalFov.HasValue)
-                {
-                    camera.fieldOfView = m_VerticalFov.Value;
-                }
-                else
-                {
-                    float fieldOfView;
-                    if (ARCoreNative.Device.TryGetVerticalFov(out fieldOfView))
-                    {
-                        m_VerticalFov = fieldOfView;
-                        camera.fieldOfView = fieldOfView;
-                    }
-                }
-            }
+        private bool PlaneUpdated(TrackedPlane tp, BoundedPlane bp)
+        {
+            var extents = (tp.ExtentX != bp.extents.x || tp.ExtentZ != bp.extents.y);
+            var rotation = tp.Rotation != bp.rotation;
+            var position = tp.Position != bp.center;
+            return (extents || rotation || position);
         }
 
         public override void Update()
         {
-            SessionManager.Instance.EarlyUpdate();
-
-            if (Frame.TrackingState != FrameTrackingState.Tracking)
+            if (Frame.TrackingState != TrackingState.Tracking)
                 return;
 
-            Frame.GetAllPlanes(ref m_TrackedPlaneBuffer);
-
+            Frame.GetPlanes(m_TrackedPlaneBuffer);
             foreach (var trackedPlane in m_TrackedPlaneBuffer)
             {
-                if (trackedPlane.IsUpdated)
+                BoundedPlane boundedPlane;
+                if (m_TrackedPlanes.TryGetValue(trackedPlane, out boundedPlane))
                 {
-                    BoundedPlane boundedPlane;
-                    if (m_TrackedPlanes.TryGetValue(trackedPlane, out boundedPlane))
+                    // remove any subsumed planes
+                    if (trackedPlane.SubsumedBy != null)
                     {
-                        if (trackedPlane.SubsumedBy == null)
-                        {
-                            OnPlaneUpdated(boundedPlane);
-                        }
-                        else
-                        {
-                            OnPlaneRemoved(boundedPlane);
-                            m_TrackedPlanes.Remove(trackedPlane);
-                        }
+                        OnPlaneRemoved(boundedPlane);
+                        m_TrackedPlanes.Remove(trackedPlane);
                     }
-                    else
+                    // update any planes with changed extents
+                    else if (PlaneUpdated(trackedPlane, boundedPlane))
                     {
-                        boundedPlane = new BoundedPlane()
-                        {
-                            id = Guid.NewGuid().ToString(),
-                            center = trackedPlane.Position,
-                            rotation = trackedPlane.Rotation,
-                            extents = trackedPlane.Bounds
-                        };
+                        boundedPlane.center = trackedPlane.Position;
+                        boundedPlane.rotation = trackedPlane.Rotation;
+                        boundedPlane.extents.x = trackedPlane.ExtentX;
+                        boundedPlane.extents.y = trackedPlane.ExtentZ;
+                        OnPlaneUpdated(boundedPlane);
+                    }
+                }
+                // add any new planes
+                else
+                {
+                    boundedPlane = new BoundedPlane()
+                    {
+                        id = Guid.NewGuid().ToString(),
+                        center = trackedPlane.Position,
+                        rotation = trackedPlane.Rotation,
+                        extents = new Vector2(trackedPlane.ExtentX, trackedPlane.ExtentZ)
+                    };
 
-                        m_TrackedPlanes.Add(trackedPlane, boundedPlane);
-                        OnPlaneAdded(boundedPlane);
-                    }
+                    m_TrackedPlanes.Add(trackedPlane, boundedPlane);
+                    OnPlaneAdded(boundedPlane);
                 }
             }
 
@@ -315,21 +223,15 @@ namespace UnityARInterface
             foreach (var kvp in m_TrackedPlanes)
             {
                 var trackedPlane = kvp.Key;
-
                 if (!m_TrackedPlaneBuffer.Exists(x => x == trackedPlane))
                 {
                     OnPlaneRemoved(kvp.Value);
-
-                    // Add to list here to avoid mutating the dictionary
-                    // while iterating over it.
                     planesToRemove.Add(trackedPlane);
                 }
             }
 
             foreach (var plane in planesToRemove)
-            {
                 m_TrackedPlanes.Remove(plane);
-            }
         }
     }
 }
