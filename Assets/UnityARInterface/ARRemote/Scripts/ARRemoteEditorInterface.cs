@@ -39,9 +39,6 @@ namespace UnityARInterface
         public bool connected { get { return m_CurrentPlayerId != -1; } }
         public int playerId { get { return m_CurrentPlayerId; } }
 
-        private bool m_ServiceRunning = false;
-        public override bool IsRunning { get { return m_ServiceRunning; } }
-
         Texture2D m_RemoteScreenYTexture;
         Texture2D m_RemoteScreenUVTexture;
 
@@ -172,13 +169,13 @@ namespace UnityARInterface
             sendVideo = m_SendVideo;
             var serializedSettings = (SerializableARSettings)settings;
             SendToPlayer(ARMessageIds.SubMessageIds.startService, serializedSettings);
-            m_ServiceRunning = true;
+            IsRunning = true;
         }
 
         public void StopRemoteService()
         {
             SendToPlayer(ARMessageIds.SubMessageIds.stopService, null);
-            m_ServiceRunning = false;
+            IsRunning = false;
         }
 
         //
