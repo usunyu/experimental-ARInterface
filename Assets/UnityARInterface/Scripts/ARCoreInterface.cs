@@ -178,6 +178,9 @@ namespace UnityARInterface
 
         public override bool TryGetPointCloud(ref PointCloud pointCloud)
         {
+            if (Frame.TrackingState != TrackingState.Tracking)
+                return false;
+
             // Fill in the data to draw the point cloud.
             m_TempPointCloud.Clear();
             Frame.PointCloud.CopyPoints(m_TempPointCloud);
@@ -197,7 +200,7 @@ namespace UnityARInterface
 
         public override LightEstimate GetLightEstimate()
         {
-            if (Session.ConnectionState == SessionConnectionState.Connected)
+            if (Session.ConnectionState == SessionConnectionState.Connected && Frame.LightEstimate.State == LightEstimateState.Valid)
             {
                 return new LightEstimate()
                 {
@@ -275,6 +278,13 @@ namespace UnityARInterface
 
         public override void Update()
         {
+            if (m_SessionManager == null)
+            {
+                return;
+            }
+
+            AsyncTask.OnUpdate();
+
             if (Frame.TrackingState != TrackingState.Tracking)
                 return;
 
