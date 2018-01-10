@@ -26,22 +26,37 @@ namespace UnityARInterface
         private Vector3[] m_PointCloudData;
         private LightEstimate m_LightEstimate;
 		private Matrix4x4 m_DisplayTransform;
+        private ARKitWorldTrackingSessionConfiguration m_SessionConfig;
+
+        public override bool IsSupported
+        {
+            get
+            {
+                return m_SessionConfig.IsSupported;
+            }
+        }
 
         // Use this for initialization
         public override IEnumerator StartService(Settings settings)
         {
-            ARKitWorldTrackingSessionConfiguration sessionConfig = new ARKitWorldTrackingSessionConfiguration(
+            m_SessionConfig = new ARKitWorldTrackingSessionConfiguration(
                 UnityARAlignment.UnityARAlignmentGravity,
                 settings.enablePlaneDetection ? UnityARPlaneDetection.Horizontal : UnityARPlaneDetection.None,
                 settings.enablePointCloud,
                 settings.enableLightEstimation);
+
+            if (!IsSupported)
+            {
+                Debug.LogError("The requested ARKit session configuration is not supported");
+                return null;
+            }
 
             UnityARSessionRunOption runOptions =
                 UnityARSessionRunOption.ARSessionRunOptionRemoveExistingAnchors |
                 UnityARSessionRunOption.ARSessionRunOptionResetTracking;
 
             nativeInterface.RunWithConfigAndOptions(
-                sessionConfig, runOptions);
+                m_SessionConfig, runOptions);
 
             // Register for plane detection
             UnityARSessionNativeInterface.ARAnchorAddedEvent += AddAnchor;

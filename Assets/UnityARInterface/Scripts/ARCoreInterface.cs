@@ -18,6 +18,20 @@ namespace UnityARInterface
         private Matrix4x4 m_DisplayTransform = Matrix4x4.identity;
         private List<Vector4> m_TempPointCloud = new List<Vector4>();
 
+        public override bool IsSupported
+        {
+            get
+            {
+                if (m_SessionManager == null)
+                    m_SessionManager = SessionManager.CreateSession();
+
+                if (m_ARCoreSessionConfig == null)
+                    m_ARCoreSessionConfig = ScriptableObject.CreateInstance<ARCoreSessionConfig>();
+
+                return m_SessionManager.CheckSupported((m_ARCoreSessionConfig));
+            }
+        }
+
         public override IEnumerator StartService(Settings settings)
         {
             if (m_ARCoreSessionConfig == null)
@@ -33,7 +47,7 @@ namespace UnityARInterface
             if (m_SessionManager == null)
             {
                 m_SessionManager = SessionManager.CreateSession();
-                if (!m_SessionManager.CheckSupported((m_ARCoreSessionConfig))){
+                if (!IsSupported){
                     ARDebug.LogError("The requested ARCore session configuration is not supported.");
                     yield break;
                 }
