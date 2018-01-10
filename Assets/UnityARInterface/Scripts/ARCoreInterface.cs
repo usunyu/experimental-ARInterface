@@ -10,8 +10,6 @@ namespace UnityARInterface
     public class ARCoreInterface : ARInterface
     {
         private List<TrackedPlane> m_TrackedPlaneBuffer = new List<TrackedPlane>();
-        private float? m_HorizontalFov;
-        private float? m_VerticalFov;
         private ScreenOrientation m_CachedScreenOrientation;
         private Dictionary<TrackedPlane, BoundedPlane> m_TrackedPlanes = new Dictionary<TrackedPlane, BoundedPlane>();
         private SessionManager m_SessionManager;
