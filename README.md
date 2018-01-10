@@ -24,7 +24,7 @@ To take a look at the API, examine `ARInterface.cs` in the project. Here follows
 
 Firstly we have the calls to start and stop the AR session:
 
-       public abstract bool StartService(Settings settings);
+       public abstract IEnumerator StartService(Settings settings);
        public abstract void StopService();
 
 The `Settings` parameter lets you choose to enable any one or more of point cloud creation, light estimation and plane detection in the session.

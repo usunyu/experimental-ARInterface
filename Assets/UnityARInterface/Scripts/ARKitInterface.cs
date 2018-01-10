@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
@@ -27,7 +28,7 @@ namespace UnityARInterface
 		private Matrix4x4 m_DisplayTransform;
 
         // Use this for initialization
-        public override bool StartService(Settings settings)
+        public override IEnumerator StartService(Settings settings)
         {
             ARKitWorldTrackingSessionConfiguration sessionConfig = new ARKitWorldTrackingSessionConfiguration(
                 UnityARAlignment.UnityARAlignmentGravity,
@@ -48,7 +49,9 @@ namespace UnityARInterface
             UnityARSessionNativeInterface.ARAnchorRemovedEvent += RemoveAnchor;
             UnityARSessionNativeInterface.ARFrameUpdatedEvent += UpdateFrame;
 
-            return true;
+            IsRunning = true;
+
+            return null;
         }
 
         private Vector3 GetWorldPosition(ARPlaneAnchor arPlaneAnchor)
@@ -140,7 +143,6 @@ namespace UnityARInterface
             OnPlaneUpdated(GetBoundedPlane(arPlaneAnchor));
         }
 
-        // Update is called once per frame
         public override void StopService()
         {
             UnityARSessionNativeInterface.GetARSessionNativeInterface().Pause();
@@ -149,6 +151,8 @@ namespace UnityARInterface
             m_PinnedYArray.Free();
             m_PinnedUVArray.Free();
             m_TexturesInitialized = false;
+
+            IsRunning = false;
         }
 
         public override bool TryGetUnscaledPose(ref Pose pose)
