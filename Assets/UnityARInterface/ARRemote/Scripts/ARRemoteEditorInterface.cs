@@ -100,7 +100,8 @@ namespace UnityARInterface
 
         public void ScreenCaptureUVMessageHandler(MessageEventArgs message)
         {
-            if (m_RemoteScreenUVTexture == null)
+            //In case of ARCore sending grayscale image, UV data would be null.
+            if (m_RemoteScreenUVTexture == null || message.data == null)
                 return;
 
             m_RemoteScreenUVTexture.LoadRawTextureData(message.data);

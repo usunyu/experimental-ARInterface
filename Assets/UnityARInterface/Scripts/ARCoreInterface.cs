@@ -4,11 +4,45 @@ using UnityEngine;
 using GoogleARCore;
 using GoogleARCoreInternal;
 using System.Collections;
+using System.Runtime.InteropServices;
 
 namespace UnityARInterface
 {
     public class ARCoreInterface : ARInterface
     {
+       
+#region ARCoreCameraAPI
+        public const string ARCoreCameraUtilityAPI = "arcore_camera_utility";
+
+        //Texture size. Larger values are slower.
+        private const int k_ARCoreTextureWidth = 640;
+        private const int k_ARCoreTextureHeight = 480;
+
+        //If imageFormatType is set to ImageFormatColor, the buffer is converted to YUV2.
+        //If imageFormatType is set to ImageFormatGrayscale, the buffer is set to Y as is, 
+        //while the UV components remain null. Will appear pink using the remote
+        private const ImageFormatType k_ImageFormatType = ImageFormatType.ImageFormatColor;
+
+        [DllImport(ARCoreCameraUtilityAPI)]
+        public static extern void TextureReader_create(int format, int width, int height, bool keepAspectRatio);
+
+        [DllImport(ARCoreCameraUtilityAPI)]
+        public static extern void TextureReader_destroy();
+
+        [DllImport(ARCoreCameraUtilityAPI)]
+        public static extern IntPtr TextureReader_submitAndAcquire(
+            int textureId, int textureWidth, int textureHeight, ref int bufferSize);
+
+        private enum ImageFormatType
+        {
+            ImageFormatColor = 0,
+            ImageFormatGrayscale = 1
+        }
+
+        private byte[] pixelBuffer;
+
+#endregion
+
         private List<TrackedPlane> m_TrackedPlaneBuffer = new List<TrackedPlane>();
         private ScreenOrientation m_CachedScreenOrientation;
         private Dictionary<TrackedPlane, BoundedPlane> m_TrackedPlanes = new Dictionary<TrackedPlane, BoundedPlane>();
@@ -66,6 +100,10 @@ namespace UnityARInterface
             yield return task.WaitForCompletion();
             //After the operation is done, we double check if the connection was successful
             IsRunning = task.Result == SessionConnectionState.Connected;
+
+            if (IsRunning)
+                TextureReader_create((int)k_ImageFormatType, k_ARCoreTextureWidth, k_ARCoreTextureHeight, true);
+
         }
 
         //Checks if we can establish a connection, and ask for permission
@@ -164,6 +202,7 @@ namespace UnityARInterface
         {
             Frame.Destroy();
             Session.Destroy();
+            TextureReader_destroy();
             IsRunning = false;
         }
 
@@ -182,10 +221,80 @@ namespace UnityARInterface
             if (Frame.TrackingState != TrackingState.Tracking)
                 return false;
 
-            var camTexture = Frame.CameraImage.Texture;
-            cameraImage.height = camTexture.height;
-            cameraImage.width = camTexture.width;
+            if (Frame.CameraImage.Texture == null || Frame.CameraImage.Texture.GetNativeTexturePtr() == IntPtr.Zero)
+                return false;
+
+            //This is a GL texture ID
+            int textureId = Frame.CameraImage.Texture.GetNativeTexturePtr().ToInt32();
+            int bufferSize = 0;
+            //Ask the native plugin to start reading the image of the current frame, 
+            //and return the image read from the privous frame
+            IntPtr bufferPtr = TextureReader_submitAndAcquire(textureId, k_ARCoreTextureWidth, k_ARCoreTextureHeight, ref bufferSize);
+
+            //I think this is needed because of this bug
+            //https://github.com/google-ar/arcore-unity-sdk/issues/66
+            GL.InvalidateState();
+
+            if (bufferPtr == IntPtr.Zero || bufferSize == 0)
+                return false;
+
+            if (pixelBuffer == null || pixelBuffer.Length != bufferSize)
+                pixelBuffer = new byte[bufferSize];
+
+            //Copy buffer
+            Marshal.Copy(bufferPtr, pixelBuffer, 0, bufferSize);
+
+            //Convert to YUV data
+            PixelBuffertoYUV2(pixelBuffer ,k_ARCoreTextureWidth, k_ARCoreTextureHeight, 
+                              k_ImageFormatType, ref cameraImage.y, ref cameraImage.uv);
+
+            cameraImage.width = k_ARCoreTextureWidth;
+            cameraImage.height = k_ARCoreTextureHeight;
+
             return true;
+        }
+
+
+        private void PixelBuffertoYUV2(byte[] rgba, int width, int height,ImageFormatType imageFormatType ,ref byte[] y, ref byte[] uv)
+        {
+            //in grayscale, it's a byte per pixel, which we can just assign to Y, and leave uv null
+            //Probably not the most accurate conversion, would save some performance
+            if (imageFormatType == ImageFormatType.ImageFormatGrayscale)
+            {
+                y = rgba;
+                uv = null;
+                return;
+            }
+
+            int pixelCount = width * height;
+
+            if (y == null || y.Length != pixelCount)
+                y = new byte[pixelCount];
+
+            if (uv == null || uv.Length != pixelCount / 2)
+                uv = new byte[pixelCount / 2];
+
+            int iY = 0;
+            int iUV = 0;
+            int iRGBA = 0;
+
+            for (int row = 0; row < height; row++)
+            {
+                for (int column = 0; column < width; column++)
+                {
+                    //Random magic starts here!
+                    //Convert every pixel to 1 byte Y
+                    y[iY++] = (byte)(((66 * rgba[iRGBA] + 129 * rgba[iRGBA + 1] + 25 * rgba[iRGBA + 2] + 128) >> 8) + 16);
+                    //Convert every pixel to 2 bytes UV at quarter resolution
+                    if (row % 2 == 0 && column % 2 == 0)
+                    {
+                        uv[iUV++] = (byte)(((-38 * rgba[iRGBA] - 74 * rgba[iRGBA + 1] + 112 * rgba[iRGBA + 2] + 128) >> 8) + 128);
+                        uv[iUV++] = (byte)(((112 * rgba[iRGBA] - 94 * rgba[iRGBA + 1] - 18 * rgba[iRGBA + 2] + 128) >> 8) + 128);
+                    }
+                    //To next pixel
+                    iRGBA += 4;
+                }
+            }
         }
 
         public override bool TryGetPointCloud(ref PointCloud pointCloud)
