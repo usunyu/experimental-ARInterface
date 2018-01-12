@@ -51,6 +51,7 @@ namespace UnityARInterface
         private ARCoreBackgroundRenderer m_BackgroundRenderer;
         private Matrix4x4 m_DisplayTransform = Matrix4x4.identity;
         private List<Vector4> m_TempPointCloud = new List<Vector4>();
+        private Dictionary<ARAnchor, Anchor> m_Anchors = new Dictionary<ARAnchor, Anchor>();
 
         public override bool IsSupported
         {
@@ -200,6 +201,11 @@ namespace UnityARInterface
 
         public override void StopService()
         {
+            var anchors = m_Anchors.Keys;
+            foreach (var anchor in anchors)
+            {
+                DestroyAnchor(anchor);
+            }
             Frame.Destroy();
             Session.Destroy();
             TextureReader_destroy();
@@ -461,6 +467,38 @@ namespace UnityARInterface
 
             foreach (var plane in planesToRemove)
                 m_TrackedPlanes.Remove(plane);
+
+            //Update Anchors
+            foreach(var anchor in m_Anchors){
+                anchor.Key.transform.position = anchor.Value.transform.position;
+                anchor.Key.transform.rotation = anchor.Value.transform.rotation;
+            }
+        }
+
+
+        public override void ApplyAnchor(ARAnchor arAnchor)
+        {
+            if (!IsRunning)
+                return;
+            //Since ARCore wants to create it's own GameObject, we can keep a reference to it and copy its Pose.
+            //Not the best, but probably will change when ARCore releases.
+            Anchor arCoreAnchor = Session.CreateWorldAnchor(new Pose(arAnchor.transform.position, arAnchor.transform.rotation));
+            arAnchor.anchorID = arCoreAnchor.gameObject.GetInstanceID().ToString();
+            m_Anchors[arAnchor] = arCoreAnchor;
+        }
+
+        public override void DestroyAnchor(ARAnchor arAnchor)
+        {
+            if (!string.IsNullOrEmpty(arAnchor.anchorID))
+            {
+                Anchor arCoreAnchor;
+                if(m_Anchors.TryGetValue(arAnchor, out arCoreAnchor)){
+                    UnityEngine.Object.Destroy(arCoreAnchor);
+                    m_Anchors.Remove(arAnchor);
+                }
+
+                arAnchor.anchorID = null;
+            }
         }
     }
 }
