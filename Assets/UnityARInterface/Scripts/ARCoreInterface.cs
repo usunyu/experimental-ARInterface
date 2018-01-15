@@ -483,7 +483,7 @@ namespace UnityARInterface
             //Since ARCore wants to create it's own GameObject, we can keep a reference to it and copy its Pose.
             //Not the best, but probably will change when ARCore releases.
             Anchor arCoreAnchor = Session.CreateWorldAnchor(new Pose(arAnchor.transform.position, arAnchor.transform.rotation));
-            arAnchor.anchorID = arCoreAnchor.gameObject.GetInstanceID().ToString();
+            arAnchor.anchorID = Guid.NewGuid().ToString();
             m_Anchors[arAnchor] = arCoreAnchor;
         }
 
