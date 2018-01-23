@@ -177,6 +177,11 @@ namespace UnityARInterface
             {
                 DestroyAnchor(anchor);
             }
+
+            UnityARSessionNativeInterface.ARAnchorAddedEvent -= AddAnchor;
+            UnityARSessionNativeInterface.ARAnchorUpdatedEvent -= UpdateAnchor;
+            UnityARSessionNativeInterface.ARAnchorRemovedEvent -= RemoveAnchor;
+            UnityARSessionNativeInterface.ARFrameUpdatedEvent -= UpdateFrame;
             UnityARSessionNativeInterface.ARUserAnchorUpdatedEvent -= UpdateUserAnchor;
             UnityARSessionNativeInterface.GetARSessionNativeInterface().Pause();
 
