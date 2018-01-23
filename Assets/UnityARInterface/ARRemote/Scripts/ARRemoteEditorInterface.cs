@@ -36,6 +36,7 @@ namespace UnityARInterface
         private Camera m_CachedCamera;
         private ARRemoteVideo m_ARVideo;
         private LightEstimate m_LightEstimate;
+        private CameraImage m_CameraImage;
         public bool connected { get { return m_CurrentPlayerId != -1; } }
         public int playerId { get { return m_CurrentPlayerId; } }
 
@@ -87,10 +88,15 @@ namespace UnityARInterface
 
             m_ARVideo.videoTextureY = m_RemoteScreenYTexture;
             m_ARVideo.videoTextureCbCr = m_RemoteScreenUVTexture;
+           
+            m_CameraImage.width = screenCaptureParams.width;
+            m_CameraImage.height = screenCaptureParams.height;
         }
 
         public void ScreenCaptureYMessageHandler(MessageEventArgs message)
         {
+            m_CameraImage.y = message.data;
+
             if (m_RemoteScreenYTexture == null)
                 return;
 
@@ -100,6 +106,8 @@ namespace UnityARInterface
 
         public void ScreenCaptureUVMessageHandler(MessageEventArgs message)
         {
+            m_CameraImage.uv = message.data;
+
             //In case of ARCore sending grayscale image, UV data would be null.
             if (m_RemoteScreenUVTexture == null || message.data == null)
                 return;
@@ -214,7 +222,19 @@ namespace UnityARInterface
 
         public override bool TryGetCameraImage(ref CameraImage cameraImage)
         {
-            return false;
+            //If remote device is not sending video, we can assume that the current cached frame is out of date.
+            if (!m_SendVideo)
+                return false;
+            //We only return a cached frame if it has all it's components
+            if (m_CameraImage.height == 0 || m_CameraImage.width == 0 || m_CameraImage.y == null || m_CameraImage.uv == null)
+                return false;
+
+            cameraImage.width = m_CameraImage.width;
+            cameraImage.height = m_CameraImage.height;
+            cameraImage.y = m_CameraImage.y;
+            cameraImage.uv = m_CameraImage.uv;
+
+            return true;
         }
 
         public override bool TryGetPointCloud(ref PointCloud pointCloud)
