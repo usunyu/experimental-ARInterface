@@ -75,7 +75,7 @@ namespace UnityARInterface
             m_ARCoreSessionConfig.EnableLightEstimation = settings.enableLightEstimation;
             m_ARCoreSessionConfig.EnablePlaneFinding = settings.enablePlaneDetection;
             //Do we want to match framerate to the camera?
-            m_ARCoreSessionConfig.MatchCameraFramerate = false;
+            m_ARCoreSessionConfig.MatchCameraFramerate = true;
 
             //Using the SessionManager instead of ARCoreSession allows us to check if the config is supported,
             //And also using the session without the need for a GameObject or an additional MonoBehaviour.
