@@ -396,16 +396,12 @@ namespace UnityARInterface
         }
 
 
-        private bool FloatCompare(float a, float b)
-        {
-            return Mathf.Abs(a - b) < 9.99999944E-11f;
-        }
-
         private bool PlaneUpdated(TrackedPlane tp, BoundedPlane bp)
         {
-            var extents = (!FloatCompare(tp.ExtentX, bp.extents.x) || !FloatCompare(tp.ExtentZ, bp.extents.y));
+            var tpExtents = new Vector2(tp.ExtentX, tp.ExtentZ);
+            var extents = Vector2.Distance(tpExtents, bp.extents) > 0.005f;
             var rotation = tp.Rotation != bp.rotation;
-            var position = tp.Position != bp.center;
+            var position = Vector2.Distance(tp.Position,  bp.center) > 0.005f;
             return (extents || rotation || position);
         }
 
@@ -442,6 +438,7 @@ namespace UnityARInterface
                             boundedPlane.rotation = trackedPlane.Rotation;
                             boundedPlane.extents.x = trackedPlane.ExtentX;
                             boundedPlane.extents.y = trackedPlane.ExtentZ;
+			    m_TrackedPlanes[trackedPlane] = boundedPlane;
                             OnPlaneUpdated(boundedPlane);
                         }
                     }
