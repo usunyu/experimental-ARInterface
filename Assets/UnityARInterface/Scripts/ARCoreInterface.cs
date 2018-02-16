@@ -5,6 +5,7 @@ using GoogleARCore;
 using GoogleARCoreInternal;
 using System.Collections;
 using System.Runtime.InteropServices;
+using UnityEngine.XR;
 
 namespace UnityARInterface
 {
@@ -48,10 +49,11 @@ namespace UnityARInterface
         private Dictionary<TrackedPlane, BoundedPlane> m_TrackedPlanes = new Dictionary<TrackedPlane, BoundedPlane>();
         private SessionManager m_SessionManager;
         private ARCoreSessionConfig m_ARCoreSessionConfig;
-        private ARCoreBackgroundRenderer m_BackgroundRenderer;
+        private ARBackgroundRenderer m_BackgroundRenderer;
         private Matrix4x4 m_DisplayTransform = Matrix4x4.identity;
         private List<Vector4> m_TempPointCloud = new List<Vector4>();
         private Dictionary<ARAnchor, Anchor> m_Anchors = new Dictionary<ARAnchor, Anchor>();
+        private bool m_BackgroundRendering;
 
         public override bool IsSupported
         {
@@ -64,6 +66,23 @@ namespace UnityARInterface
                     m_ARCoreSessionConfig = ScriptableObject.CreateInstance<ARCoreSessionConfig>();
 
                 return m_SessionManager.CheckSupported((m_ARCoreSessionConfig));
+            }
+        }
+
+        public override bool BackgroundRendering
+        {
+            get
+            {
+                return m_BackgroundRendering;
+            }
+            set
+            {
+                if (m_BackgroundRenderer == null)
+                    return;
+
+                m_BackgroundRendering = value;
+                m_BackgroundRenderer.mode = m_BackgroundRendering ? 
+                    ARRenderMode.MaterialAsBackground : ARRenderMode.StandardBackground;
             }
         }
 
@@ -209,6 +228,10 @@ namespace UnityARInterface
             Frame.Destroy();
             Session.Destroy();
             TextureReader_destroy();
+            BackgroundRendering = false;
+            m_BackgroundRenderer.backgroundMaterial = null;
+            m_BackgroundRenderer.camera = null;
+            m_BackgroundRenderer = null;
             IsRunning = false;
             m_SessionManager = null;
         }
@@ -381,21 +404,38 @@ namespace UnityARInterface
 
         public override void SetupCamera(Camera camera)
         {
-            camera.gameObject.SetActive(false);
-            m_BackgroundRenderer = camera.gameObject.AddComponent<ARCoreBackgroundRenderer>();
-            m_BackgroundRenderer.BackgroundMaterial = Resources.Load("Materials/ARBackground", typeof(Material)) as Material;
-            camera.gameObject.SetActive(true);
+            m_BackgroundRenderer = new ARBackgroundRenderer();
+            m_BackgroundRenderer.backgroundMaterial = Resources.Load("Materials/ARBackground", typeof(Material)) as Material;
+            m_BackgroundRenderer.camera = camera;
         }
 
         public override void UpdateCamera(Camera camera)
         {
-            if (Screen.orientation == m_CachedScreenOrientation)
+            if (Screen.orientation != m_CachedScreenOrientation){
+                CalculateDisplayTransform();
+                m_CachedScreenOrientation = Screen.orientation;
+            }
+
+            if (!m_BackgroundRendering || Frame.CameraImage.Texture == null)
                 return;
 
-            CalculateDisplayTransform();
-            m_CachedScreenOrientation = Screen.orientation;
-        }
+            const string mainTexVar = "_MainTex";
+            const string topLeftRightVar = "_UvTopLeftRight";
+            const string bottomLeftRightVar = "_UvBottomLeftRight";
 
+            m_BackgroundRenderer.backgroundMaterial.SetTexture(mainTexVar, Frame.CameraImage.Texture);
+
+            ApiDisplayUvCoords uvQuad = Frame.CameraImage.DisplayUvCoords;
+
+            m_BackgroundRenderer.backgroundMaterial.SetVector(topLeftRightVar,
+                new Vector4(uvQuad.TopLeft.x, uvQuad.TopLeft.y, uvQuad.TopRight.x, uvQuad.TopRight.y));
+            m_BackgroundRenderer.backgroundMaterial.SetVector(bottomLeftRightVar,
+                new Vector4(uvQuad.BottomLeft.x, uvQuad.BottomLeft.y, uvQuad.BottomRight.x, uvQuad.BottomRight.y));
+
+            camera.projectionMatrix = Frame.CameraImage.GetCameraProjectionMatrix(
+                camera.nearClipPlane, camera.farClipPlane);
+
+        }
 
         private bool PlaneUpdated(TrackedPlane tp, BoundedPlane bp)
         {
