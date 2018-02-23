@@ -1,6 +1,6 @@
 All contents of this repository are released under the MIT License, which is listed under /LICENSES/MIT_LICENSE file, except for:
 	1. Contents of the /Assets/UnityARKitPlugin/Examples/FaceTracking/SlothCharacter folder and its subfolders, which are released under the Unity Companion License, which is listed under /LICENSES/UCL_LICENSE file.
-	2. Contents of the /Assets/GoogleARCore folder and its subfolders, which are released under the Apache License, Version 2.0, which is listed under /Assets/GoogleARCore/LICENSE file.
+	2. Contents of the /Assets/GoogleARCore folder and its subfolders, which are released under the Apache License, Version 2.0, which is listed under /LICENSES/GoogleARCore_LICENSE file.
 
 
 

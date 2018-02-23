@@ -5,7 +5,7 @@ Experimental cross-platform framework for mobile AR shown as part of ["So You Th
 
 * [Unity 2017.3.0f3](https://unity3d.com/unity/whats-new/unity-2017.3.0) release or later
 * Unity ARKit plugin on [BitBucket](https://bitbucket.org/Unity-Technologies/unity-arkit-plugin) or from the [Asset Store](https://www.assetstore.unity3d.com/en/#!/content/92515)
-* Unity ARCore Preview 2 plugin setup [following these steps](https://developers.google.com/ar/develop/unity/getting-started) 
+* ARCore 1.0 Unity SDK setup [following these steps](https://developers.google.com/ar/develop/unity/quickstart) 
 
 To use either ARKit or ARCore, their associated prerequisites must also be satisfied.
 
