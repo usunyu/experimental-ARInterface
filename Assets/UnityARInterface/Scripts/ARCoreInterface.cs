@@ -107,8 +107,21 @@ namespace UnityARInterface
 
             if (!IsSupported)
             {
-                Debug.LogError("The requested ARCore session configuration is not supported.");
-                yield break;
+                switch (Session.Status)
+                {
+                    case SessionStatus.ErrorApkNotAvailable:
+                        Debug.LogError("ARCore APK is not installed");
+                        yield break;
+                    case SessionStatus.ErrorPermissionNotGranted:
+                        Debug.LogError("A needed permission (likely the camera) has not been granted");
+                        yield break;
+                    case SessionStatus.ErrorSessionConfigurationNotSupported:
+                        Debug.LogError("The given ARCore session configuration is not supported on this device");
+                        yield break;
+                    case SessionStatus.FatalError:
+                        Debug.LogError("A fatal error was encountered trying to start the ARCore session");
+                        yield break;
+                }
             }
 
             while (!Session.Status.IsValid())
@@ -117,9 +130,15 @@ namespace UnityARInterface
 
                 if (Session.Status.IsError())
                 {
-                    Debug.LogError("Could not create an ARCore session.  The current Unity Editor may not support this " +
-    "version of ARCore.");
-                    yield break;
+                    switch (Session.Status)
+                    {
+                        case SessionStatus.ErrorPermissionNotGranted:
+                            Debug.LogError("A needed permission (likely the camera) has not been granted");
+                            yield break;
+                        case SessionStatus.FatalError:
+                            Debug.LogError("A fatal error was encountered trying to start the ARCore session");
+                            yield break;
+                    }
                 }
 
                 yield return null;
