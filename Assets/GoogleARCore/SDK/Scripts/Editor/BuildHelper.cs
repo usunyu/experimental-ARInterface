@@ -23,6 +23,9 @@ namespace GoogleARCoreInternal
     using System.Diagnostics.CodeAnalysis;
     using UnityEditor;
     using UnityEditor.Build;
+#if UNITY_2018_1_OR_NEWER
+    using UnityEditor.Build.Reporting;
+#endif
     using UnityEngine;
 
     [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1600:ElementsMustBeDocumented",
@@ -39,8 +42,13 @@ namespace GoogleARCoreInternal
             }
         }
 
+#if UNITY_2018_1_OR_NEWER
+        public void OnPreprocessBuild(BuildReport report)
+        {
+#else
         public void OnPreprocessBuild(BuildTarget target, string path)
         {
+#endif 
             var isARCoreRequired = ARCoreProjectSettings.Instance.IsARCoreRequired;
 
             Debug.LogFormat("Building application with {0} ARCore support.",
