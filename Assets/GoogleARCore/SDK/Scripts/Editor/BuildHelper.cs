@@ -29,11 +29,11 @@ namespace GoogleARCoreInternal
     using UnityEngine;
 
     [SuppressMessage("StyleCop.CSharp.DocumentationRules", "SA1600:ElementsMustBeDocumented",
-    Justification = "Internal")]
+     Justification = "Internal")]
     public class BuildHelper : IPreprocessBuild
     {
         [SuppressMessage("UnityRules.UnityStyleRules", "US1000:FieldsMustBeUpperCamelCase",
-        Justification = "Overriden property.")]
+         Justification = "Overriden property.")]
         public int callbackOrder
         {
             get
