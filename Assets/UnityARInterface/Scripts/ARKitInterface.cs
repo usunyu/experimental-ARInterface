@@ -34,6 +34,7 @@ namespace UnityARInterface
         private ARKitWorldTrackingSessionConfiguration m_SessionConfig;
         private Dictionary<string, ARAnchor> m_Anchors = new Dictionary<string, ARAnchor>();
         private bool m_BackgroundRendering;
+        private bool m_CanRenderBackground;
         private Camera m_Camera;
         private float m_CurrentNearZ;
         private float m_CurrentFarZ;
@@ -50,7 +51,7 @@ namespace UnityARInterface
         {
             get
             {
-                return m_BackgroundRendering;
+                return m_BackgroundRendering && m_CanRenderBackground;
             }
             set
             {
@@ -58,7 +59,7 @@ namespace UnityARInterface
                     return;
 
                 m_BackgroundRendering = value;
-                m_BackgroundRenderer.mode = m_BackgroundRendering ?
+                m_BackgroundRenderer.mode = m_BackgroundRendering && m_CanRenderBackground ?
                     ARRenderMode.MaterialAsBackground : ARRenderMode.StandardBackground;
             }
         }
@@ -217,6 +218,7 @@ namespace UnityARInterface
             m_TexturesInitialized = false;
 
             BackgroundRendering = false;
+            m_CanRenderBackground = false;
             m_BackgroundRenderer.backgroundMaterial = null;
             m_BackgroundRenderer.camera = null;
             m_BackgroundRenderer = null;
@@ -296,8 +298,12 @@ namespace UnityARInterface
             ARTextureHandles handles = UnityARSessionNativeInterface.GetARSessionNativeInterface().GetARVideoTextureHandles();
             if (handles.textureY == System.IntPtr.Zero || handles.textureCbCr == System.IntPtr.Zero)
             {
+                m_CanRenderBackground = false;
                 return;
             }
+
+            m_CanRenderBackground = true;
+            BackgroundRendering = m_BackgroundRendering;
 
             Resolution currentResolution = Screen.currentResolution;
 
