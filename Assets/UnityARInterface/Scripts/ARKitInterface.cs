@@ -30,10 +30,11 @@ namespace UnityARInterface
         private GCHandle m_PinnedUVArray;
         private Vector3[] m_PointCloudData;
         private LightEstimate m_LightEstimate;
-		private Matrix4x4 m_DisplayTransform;
+        private Matrix4x4 m_DisplayTransform;
         private ARKitWorldTrackingSessionConfiguration m_SessionConfig;
         private Dictionary<string, ARAnchor> m_Anchors = new Dictionary<string, ARAnchor>();
         private bool m_BackgroundRendering;
+        private bool m_CanRenderBackground;
         private Camera m_Camera;
         private float m_CurrentNearZ;
         private float m_CurrentFarZ;
@@ -50,7 +51,7 @@ namespace UnityARInterface
         {
             get
             {
-                return m_BackgroundRendering;
+                return m_BackgroundRendering && m_CanRenderBackground;
             }
             set
             {
@@ -58,8 +59,11 @@ namespace UnityARInterface
                     return;
 
                 m_BackgroundRendering = value;
-                m_BackgroundRenderer.mode = m_BackgroundRendering ?
+                m_BackgroundRenderer.mode = m_BackgroundRendering && m_CanRenderBackground ?
                     ARRenderMode.MaterialAsBackground : ARRenderMode.StandardBackground;
+
+                m_Camera.clearFlags = CameraClearFlags.SolidColor;
+                m_Camera.backgroundColor = Color.black;
             }
         }
 
@@ -135,18 +139,18 @@ namespace UnityARInterface
 
             m_PointCloudData = camera.pointCloudData;
             m_LightEstimate.capabilities = LightEstimateCapabilities.AmbientColorTemperature | LightEstimateCapabilities.AmbientIntensity;
-			m_LightEstimate.ambientColorTemperature = camera.lightData.arLightEstimate.ambientColorTemperature;
+            m_LightEstimate.ambientColorTemperature = camera.lightData.arLightEstimate.ambientColorTemperature;
 
             // Convert ARKit intensity to Unity intensity
             // ARKit ambient intensity ranges 0-2000
             // Unity ambient intensity ranges 0-8 (for over-bright lights)
-			m_LightEstimate.ambientIntensity = camera.lightData.arLightEstimate.ambientIntensity / 1000f;
+            m_LightEstimate.ambientIntensity = camera.lightData.arLightEstimate.ambientIntensity / 1000f;
 
-			//get display transform matrix sent up from sdk
-			m_DisplayTransform.SetColumn(0, camera.displayTransform.column0);
-			m_DisplayTransform.SetColumn(1, camera.displayTransform.column1);
-			m_DisplayTransform.SetColumn(2, camera.displayTransform.column2);
-			m_DisplayTransform.SetColumn(3, camera.displayTransform.column3);
+            //get display transform matrix sent up from sdk
+            m_DisplayTransform.SetColumn(0, camera.displayTransform.column0);
+            m_DisplayTransform.SetColumn(1, camera.displayTransform.column1);
+            m_DisplayTransform.SetColumn(2, camera.displayTransform.column2);
+            m_DisplayTransform.SetColumn(3, camera.displayTransform.column3);
         }
 
         IntPtr PinByteArray(ref GCHandle handle, byte[] array)
@@ -189,9 +193,10 @@ namespace UnityARInterface
         private void UpdateUserAnchor(ARUserAnchor anchorData)
         {
             ARAnchor anchor;
-            if(m_Anchors.TryGetValue(anchorData.identifier, out anchor)){
+            if (m_Anchors.TryGetValue(anchorData.identifier, out anchor))
+            {
                 anchor.transform.position = anchorData.transform.GetColumn(3);
-                anchor.transform.rotation = anchorData.transform.rotation;   
+                anchor.transform.rotation = anchorData.transform.rotation;
             }
         }
 
@@ -217,6 +222,7 @@ namespace UnityARInterface
             m_TexturesInitialized = false;
 
             BackgroundRendering = false;
+            m_CanRenderBackground = false;
             m_BackgroundRenderer.backgroundMaterial = null;
             m_BackgroundRenderer.camera = null;
             m_BackgroundRenderer = null;
@@ -271,10 +277,10 @@ namespace UnityARInterface
             return m_LightEstimate;
         }
 
-		public override Matrix4x4 GetDisplayTransform()
-		{
-			return m_DisplayTransform;
-		}
+        public override Matrix4x4 GetDisplayTransform()
+        {
+            return m_DisplayTransform;
+        }
 
         public override void SetupCamera(Camera camera)
         {
@@ -296,8 +302,12 @@ namespace UnityARInterface
             ARTextureHandles handles = UnityARSessionNativeInterface.GetARSessionNativeInterface().GetARVideoTextureHandles();
             if (handles.textureY == System.IntPtr.Zero || handles.textureCbCr == System.IntPtr.Zero)
             {
+                m_CanRenderBackground = false;
                 return;
             }
+
+            m_CanRenderBackground = true;
+            BackgroundRendering = m_BackgroundRendering;
 
             Resolution currentResolution = Screen.currentResolution;
 
@@ -341,7 +351,7 @@ namespace UnityARInterface
         {
             if (!IsRunning)
                 return;
-            
+
             Matrix4x4 matrix = Matrix4x4.TRS(arAnchor.transform.position, arAnchor.transform.rotation, arAnchor.transform.localScale);
             UnityARUserAnchorData anchorData = new UnityARUserAnchorData();
             anchorData.transform.column0 = matrix.GetColumn(0);
@@ -356,7 +366,8 @@ namespace UnityARInterface
 
         public override void DestroyAnchor(ARAnchor arAnchor)
         {
-            if(!string.IsNullOrEmpty(arAnchor.anchorID)){
+            if (!string.IsNullOrEmpty(arAnchor.anchorID))
+            {
                 UnityARSessionNativeInterface.GetARSessionNativeInterface().RemoveUserAnchor(arAnchor.anchorID);
                 if (m_Anchors.ContainsKey(arAnchor.anchorID))
                 {
